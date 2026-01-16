@@ -1,0 +1,62 @@
+<!-- 
+  TRMNL Liquid Template for L Train Arrivals
+  Copy this into your Private Plugin's "Edit Markup" section
+  
+  This template expects polling data from the /arrivals/trmnl endpoint
+-->
+
+<div class="layout layout--col gap--space-between h--full">
+  
+  <!-- Header -->
+  <div class="flex justify--space-between items--center">
+    <div class="flex items--center gap--md">
+      <div class="flex items--center justify--center" style="background: #000; border-radius: 50%; width: 48px; height: 48px;">
+        <span class="text--title text--inverted">L</span>
+      </div>
+      <div>
+        <div class="text--title">{{ station | default: "Metropolitan / Lorimer" }}</div>
+        <div class="text--label meta">Updated {{ updated | default: "--:--" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Train Times -->
+  <div class="layout layout--col gap--lg flex--grow">
+    
+    <!-- Manhattan Bound -->
+    <div class="layout layout--col gap--sm">
+      <div class="flex items--center gap--sm">
+        <span class="text--label uppercase">→ 8th Ave (Manhattan)</span>
+      </div>
+      <div class="flex items--baseline gap--md">
+        <span class="text--giant">{{ manhattan_next | default: "—" }}</span>
+        {% if manhattan_following != "" %}
+          <span class="text--body meta">then {{ manhattan_following }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <hr class="divider" />
+
+    <!-- Canarsie Bound -->
+    <div class="layout layout--col gap--sm">
+      <div class="flex items--center gap--sm">
+        <span class="text--label uppercase">→ Canarsie (Brooklyn)</span>
+      </div>
+      <div class="flex items--baseline gap--md">
+        <span class="text--giant">{{ canarsie_next | default: "—" }}</span>
+        {% if canarsie_following != "" %}
+          <span class="text--body meta">then {{ canarsie_following }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="flex justify--end">
+    <span class="text--label meta">MTA Real-Time Data</span>
+  </div>
+
+</div>
