@@ -78,21 +78,31 @@ Then visit `http://localhost:8000/arrivals/trmnl` to see the JSON output.
   "station": "Metropolitan / Lorimer",
   "line": "L",
   "updated": "9:42 AM",
-  "manhattan_trains": [
-    {"minutes": 3, "arrival_time": "9:45 AM"},
-    {"minutes": 8, "arrival_time": "9:50 AM"},
-    {"minutes": 14, "arrival_time": "9:56 AM"}
+  "manhattan_list": [
+    {"minutes": "3 min", "time": "9:45 AM"},
+    {"minutes": "8 min", "time": "9:50 AM"},
+    {"minutes": "14 min", "time": "9:56 AM"},
+    {"minutes": "22 min", "time": "10:04 AM"}
   ],
-  "canarsie_trains": [
-    {"minutes": 1, "arrival_time": "9:43 AM"},
-    {"minutes": 7, "arrival_time": "9:49 AM"}
+  "canarsie_list": [
+    {"minutes": "1 min", "time": "9:43 AM"},
+    {"minutes": "7 min", "time": "9:49 AM"}
   ],
   "manhattan_next": "3 min",
+  "manhattan_next_time": "9:45 AM",
   "canarsie_next": "1 min",
-  "manhattan_following": "8 min, 14 min",
+  "canarsie_next_time": "9:43 AM",
+  "manhattan_following": "8 min, 14 min, 22 min",
   "canarsie_following": "7 min"
 }
 ```
+
+## TRMNL Templates
+
+Two templates are included:
+
+1. **`trmnl-template.liquid`** - Shows both directions with Manhattan trains prominently displayed
+2. **`trmnl-template-manhattan-only.liquid`** - Shows only Manhattan-bound trains (simpler layout)
 
 ## Customizing for a Different Station
 
@@ -137,19 +147,38 @@ STOP_ID = "L10"  # Change this to your station
 
 The MTA feed URL: `https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct/gtfs-l`
 
+## What The Display Shows
+
+The display shows **actual real-time arrival times** pulled from the MTA's GTFS real-time feed - the same data that powers the countdown clocks in subway stations.
+
+For example, if the next Manhattan-bound L train arrives at 9:45 AM (3 minutes from now), you'll see:
+- **3 min** (time until arrival)
+- **9:45 AM** (actual arrival time)
+
 ## Troubleshooting
 
 **No trains showing?**
 - The L train runs less frequently late night/early morning
-- Check if the MTA feed is working: visit the raw endpoint `/arrivals`
+- Check the raw data at `/arrivals` endpoint - it includes error messages if something's wrong
+
+**Times seem wrong?**
+- The MTA feed uses UTC internally; times are converted to Eastern time for display
+- Check if there are service alerts on the L train
 
 **Display not updating?**
 - Check your TRMNL playlist refresh interval
 - Verify your server is running (visit the `/` health check endpoint)
+- The `/arrivals` endpoint shows a `traceback` field if there's an error
 
-**Wrong station?**
-- Double-check the `STOP_ID` in `main.py`
-- The stop ID format is `L##` where ## is the station number
+**Testing locally?**
+```bash
+# Run the server
+python main.py
+
+# In another terminal, test the endpoints:
+curl http://localhost:8000/arrivals | python -m json.tool
+curl http://localhost:8000/arrivals/trmnl | python -m json.tool
+```
 
 ## License
 

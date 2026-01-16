@@ -8,55 +8,52 @@
 <div class="layout layout--col gap--space-between h--full">
   
   <!-- Header -->
-  <div class="flex justify--space-between items--center">
-    <div class="flex items--center gap--md">
-      <div class="flex items--center justify--center" style="background: #000; border-radius: 50%; width: 48px; height: 48px;">
-        <span class="text--title text--inverted">L</span>
-      </div>
-      <div>
-        <div class="text--title">{{ station | default: "Metropolitan / Lorimer" }}</div>
-        <div class="text--label meta">Updated {{ updated | default: "--:--" }}</div>
-      </div>
+  <div class="flex items--center gap--md">
+    <div class="flex items--center justify--center" style="background: #a7a9ac; border-radius: 50%; width: 56px; height: 56px;">
+      <span style="font-size: 36px; font-weight: bold;">L</span>
+    </div>
+    <div>
+      <div class="text--title">{{ station | default: "Metropolitan / Lorimer" }}</div>
+      <div class="text--label meta">Updated {{ updated | default: "--:--" }}</div>
     </div>
   </div>
 
-  <!-- Train Times -->
-  <div class="layout layout--col gap--lg flex--grow">
+  <!-- Manhattan Bound Trains (Primary) -->
+  <div class="layout layout--col gap--sm flex--grow">
+    <div class="text--label uppercase">Manhattan → 8th Ave</div>
     
-    <!-- Manhattan Bound -->
-    <div class="layout layout--col gap--sm">
-      <div class="flex items--center gap--sm">
-        <span class="text--label uppercase">→ 8th Ave (Manhattan)</span>
+    {% if manhattan_list.size > 0 %}
+      <div class="layout layout--col gap--sm">
+        {% for train in manhattan_list %}
+          <div class="flex justify--space-between items--center {% if forloop.first %}text--title{% else %}text--body{% endif %}">
+            <span>{{ train.minutes }}</span>
+            <span class="meta">{{ train.time }}</span>
+          </div>
+          {% if forloop.first %}<hr class="divider" />{% endif %}
+        {% endfor %}
       </div>
-      <div class="flex items--baseline gap--md">
-        <span class="text--giant">{{ manhattan_next | default: "—" }}</span>
-        {% if manhattan_following != "" %}
-          <span class="text--body meta">then {{ manhattan_following }}</span>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Divider -->
-    <hr class="divider" />
-
-    <!-- Canarsie Bound -->
-    <div class="layout layout--col gap--sm">
-      <div class="flex items--center gap--sm">
-        <span class="text--label uppercase">→ Canarsie (Brooklyn)</span>
-      </div>
-      <div class="flex items--baseline gap--md">
-        <span class="text--giant">{{ canarsie_next | default: "—" }}</span>
-        {% if canarsie_following != "" %}
-          <span class="text--body meta">then {{ canarsie_following }}</span>
-        {% endif %}
-      </div>
-    </div>
-
+    {% else %}
+      <div class="text--body meta">No trains scheduled</div>
+    {% endif %}
   </div>
 
-  <!-- Footer -->
-  <div class="flex justify--end">
-    <span class="text--label meta">MTA Real-Time Data</span>
+  <!-- Divider -->
+  <hr class="divider" />
+
+  <!-- Canarsie Bound (Secondary/Smaller) -->
+  <div class="layout layout--col gap--xs">
+    <div class="text--label uppercase meta">Brooklyn → Canarsie</div>
+    {% if canarsie_list.size > 0 %}
+      <div class="flex gap--md text--body">
+        {% for train in canarsie_list limit:3 %}
+          <span>{{ train.minutes }}</span>
+          {% unless forloop.last %}<span class="meta">·</span>{% endunless %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <span class="text--body meta">No trains</span>
+    {% endif %}
   </div>
 
 </div>
+

@@ -1,0 +1,45 @@
+<!-- 
+  TRMNL Liquid Template - Manhattan-Bound L Trains Only
+  A simpler template focused just on Manhattan-bound arrivals
+  
+  Copy this into your Private Plugin's "Edit Markup" section
+  Polls from the /arrivals/trmnl endpoint
+-->
+
+<div class="layout layout--col gap--md h--full">
+  
+  <!-- Header -->
+  <div class="flex items--center gap--md">
+    <div class="flex items--center justify--center" style="background: #a7a9ac; border-radius: 50%; width: 64px; height: 64px;">
+      <span style="font-size: 42px; font-weight: bold;">L</span>
+    </div>
+    <div>
+      <div class="text--title">Metropolitan / Lorimer</div>
+      <div class="text--body">to 8th Ave (Manhattan)</div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- Train List -->
+  <div class="layout layout--col gap--md flex--grow">
+    {% if manhattan_list.size > 0 %}
+      {% for train in manhattan_list %}
+        <div class="flex justify--space-between items--baseline">
+          <span class="{% if forloop.first %}text--giant{% else %}text--title{% endif %}">
+            {{ train.minutes }}
+          </span>
+          <span class="text--body meta">{{ train.time }}</span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="text--title">No trains scheduled</div>
+    {% endif %}
+  </div>
+
+  <!-- Footer -->
+  <div class="flex justify--end">
+    <span class="text--label meta">Updated {{ updated }}</span>
+  </div>
+
+</div>

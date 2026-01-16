@@ -5,73 +5,89 @@ Fetches real-time subway arrivals at Metropolitan Ave / Lorimer St
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone
 from nyct_gtfs import NYCTFeed
 
 app = FastAPI(title="MTA L Train Arrivals for TRMNL")
 
 # Metropolitan Ave / Lorimer St stop IDs
-# The L train uses stop IDs like "L10" with N/S suffix for direction
-# L10N = Manhattan-bound, L10S = Canarsie-bound
-STOP_ID = "L10"
-MANHATTAN_BOUND = f"{STOP_ID}N"
-CANARSIE_BOUND = f"{STOP_ID}S"
-
-# NYC timezone
-NYC_TZ = pytz.timezone("America/New_York")
+# L10N = Manhattan-bound (toward 8th Ave)
+# L10S = Canarsie-bound (toward Rockaway Pkwy)
+MANHATTAN_STOP_ID = "L10N"
+CANARSIE_STOP_ID = "L10S"
 
 
 def get_arrivals():
     """Fetch real-time L train arrivals at Metropolitan/Lorimer"""
     try:
         feed = NYCTFeed("L")
-        now = datetime.now(NYC_TZ)
+        now = datetime.now(timezone.utc)
         
         arrivals = {
             "manhattan": [],  # Northbound to 8th Ave
             "canarsie": [],   # Southbound to Canarsie/Rockaway Pkwy
         }
         
-        for trip in feed.trips:
-            # Check each stop in this trip's schedule
-            for stop_update in trip.stop_time_updates:
-                stop_id = stop_update.stop_id
-                
-                # Check if this train stops at our station
-                if stop_id in [MANHATTAN_BOUND, CANARSIE_BOUND]:
-                    arrival_time = stop_update.arrival
+        # Get all trains heading to our station (Manhattan-bound)
+        manhattan_trains = feed.filter_trips(headed_for_stop_id=MANHATTAN_STOP_ID)
+        for train in manhattan_trains:
+            # Find the stop_time_update for our specific stop
+            for stop in train.stop_time_updates:
+                if stop.stop_id == MANHATTAN_STOP_ID:
+                    arrival_time = stop.arrival
                     if arrival_time is None:
                         continue
                     
+                    # arrival_time is already a datetime object
+                    # Make sure we handle timezone properly
+                    if arrival_time.tzinfo is None:
+                        arrival_time = arrival_time.replace(tzinfo=timezone.utc)
+                    
                     # Calculate minutes until arrival
-                    if hasattr(arrival_time, 'timestamp'):
-                        arrival_dt = datetime.fromtimestamp(arrival_time.timestamp(), NYC_TZ)
-                    else:
-                        arrival_dt = arrival_time.replace(tzinfo=NYC_TZ) if arrival_time.tzinfo is None else arrival_time
+                    delta = arrival_time - now
+                    minutes = int(delta.total_seconds() / 60)
                     
-                    minutes = int((arrival_dt - now).total_seconds() / 60)
-                    
-                    # Only include trains arriving in the future (and within 60 min)
+                    # Only include trains arriving soon (not in the past, within 60 min)
                     if 0 <= minutes <= 60:
-                        train_info = {
+                        arrivals["manhattan"].append({
                             "minutes": minutes,
-                            "arrival_time": arrival_dt.strftime("%-I:%M %p"),
-                        }
-                        
-                        if stop_id == MANHATTAN_BOUND:
-                            arrivals["manhattan"].append(train_info)
-                        else:
-                            arrivals["canarsie"].append(train_info)
+                            "arrival_time": arrival_time.strftime("%-I:%M %p"),
+                            "headsign": train.headsign_text or "8 Av",
+                        })
+                    break  # Found our stop, move to next train
         
-        # Sort by arrival time and limit to next 5 trains each direction
-        arrivals["manhattan"] = sorted(arrivals["manhattan"], key=lambda x: x["minutes"])[:5]
-        arrivals["canarsie"] = sorted(arrivals["canarsie"], key=lambda x: x["minutes"])[:5]
+        # Get all trains heading to our station (Canarsie-bound)
+        canarsie_trains = feed.filter_trips(headed_for_stop_id=CANARSIE_STOP_ID)
+        for train in canarsie_trains:
+            for stop in train.stop_time_updates:
+                if stop.stop_id == CANARSIE_STOP_ID:
+                    arrival_time = stop.arrival
+                    if arrival_time is None:
+                        continue
+                    
+                    if arrival_time.tzinfo is None:
+                        arrival_time = arrival_time.replace(tzinfo=timezone.utc)
+                    
+                    delta = arrival_time - now
+                    minutes = int(delta.total_seconds() / 60)
+                    
+                    if 0 <= minutes <= 60:
+                        arrivals["canarsie"].append({
+                            "minutes": minutes,
+                            "arrival_time": arrival_time.strftime("%-I:%M %p"),
+                            "headsign": train.headsign_text or "Canarsie-Rockaway Pkwy",
+                        })
+                    break
+        
+        # Sort by arrival time and limit to next 6 trains each direction
+        arrivals["manhattan"] = sorted(arrivals["manhattan"], key=lambda x: x["minutes"])[:6]
+        arrivals["canarsie"] = sorted(arrivals["canarsie"], key=lambda x: x["minutes"])[:6]
         
         return arrivals
         
     except Exception as e:
-        return {"error": str(e), "manhattan": [], "canarsie": []}
+        import traceback
+        return {"error": str(e), "traceback": traceback.format_exc(), "manhattan": [], "canarsie": []}
 
 
 @app.get("/")
@@ -84,9 +100,10 @@ def health_check():
 def get_train_arrivals():
     """
     Get upcoming L train arrivals at Metropolitan Ave / Lorimer St
-    Returns JSON formatted for TRMNL polling
+    Returns raw JSON with all arrival data
     """
-    now = datetime.now(NYC_TZ)
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo("America/New_York"))
     arrivals = get_arrivals()
     
     return JSONResponse({
@@ -96,7 +113,8 @@ def get_train_arrivals():
         "updated_date": now.strftime("%a %b %-d"),
         "manhattan": arrivals.get("manhattan", []),
         "canarsie": arrivals.get("canarsie", []),
-        "error": arrivals.get("error")
+        "error": arrivals.get("error"),
+        "traceback": arrivals.get("traceback"),
     })
 
 
@@ -104,39 +122,60 @@ def get_train_arrivals():
 def get_train_arrivals_trmnl():
     """
     Formatted specifically for TRMNL's merge_variables structure
+    Shows Manhattan-bound trains prominently
     """
-    now = datetime.now(NYC_TZ)
+    from zoneinfo import ZoneInfo
+    now = datetime.now(ZoneInfo("America/New_York"))
     arrivals = get_arrivals()
     
-    # Format for easy display
-    manhattan_display = []
-    for train in arrivals.get("manhattan", []):
-        if train["minutes"] == 0:
-            manhattan_display.append("Now")
-        elif train["minutes"] == 1:
-            manhattan_display.append("1 min")
-        else:
-            manhattan_display.append(f"{train['minutes']} min")
+    manhattan_trains = arrivals.get("manhattan", [])
+    canarsie_trains = arrivals.get("canarsie", [])
     
-    canarsie_display = []
-    for train in arrivals.get("canarsie", []):
-        if train["minutes"] == 0:
-            canarsie_display.append("Now")
-        elif train["minutes"] == 1:
-            canarsie_display.append("1 min")
+    # Format arrival times for display
+    def format_minutes(mins):
+        if mins == 0:
+            return "Now"
+        elif mins == 1:
+            return "1 min"
         else:
-            canarsie_display.append(f"{train['minutes']} min")
+            return f"{mins} min"
+    
+    # Build display strings
+    manhattan_display = [format_minutes(t["minutes"]) for t in manhattan_trains]
+    canarsie_display = [format_minutes(t["minutes"]) for t in canarsie_trains]
+    
+    # Build detailed train list for template iteration
+    manhattan_list = [
+        {"minutes": format_minutes(t["minutes"]), "time": t["arrival_time"]}
+        for t in manhattan_trains
+    ]
+    canarsie_list = [
+        {"minutes": format_minutes(t["minutes"]), "time": t["arrival_time"]}
+        for t in canarsie_trains
+    ]
     
     return JSONResponse({
         "station": "Metropolitan / Lorimer",
         "line": "L",
         "updated": now.strftime("%-I:%M %p"),
-        "manhattan_trains": arrivals.get("manhattan", []),
-        "canarsie_trains": arrivals.get("canarsie", []),
+        
+        # Full train lists for iteration in template
+        "manhattan_list": manhattan_list,
+        "canarsie_list": canarsie_list,
+        
+        # Quick access to next trains
         "manhattan_next": manhattan_display[0] if manhattan_display else "No trains",
+        "manhattan_next_time": manhattan_trains[0]["arrival_time"] if manhattan_trains else "",
+        
         "canarsie_next": canarsie_display[0] if canarsie_display else "No trains",
+        "canarsie_next_time": canarsie_trains[0]["arrival_time"] if canarsie_trains else "",
+        
+        # Following trains as comma-separated string
         "manhattan_following": ", ".join(manhattan_display[1:4]) if len(manhattan_display) > 1 else "",
         "canarsie_following": ", ".join(canarsie_display[1:4]) if len(canarsie_display) > 1 else "",
+        
+        # Error info for debugging
+        "error": arrivals.get("error"),
     })
 
 
